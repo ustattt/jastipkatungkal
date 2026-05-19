@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jastip KaTungkal</title>
+<style>
+  :root { --primary: #0D9488; --bg: #F0FDFA; --card: #FFFFFF; --text: #134E4A; --muted: #64748B; }
+    * { margin:0; padding:0; box-sizing:border-box; font-family:system-ui,sans-serif; }
+  body { background:var(--bg); color:var(--text); padding:16px; }
+ .container { max-width:900px; margin:0 auto; }
+  header { background:var(--primary); color:white; padding:20px; border-radius:16px; margin-bottom:20px; }
+  h1 { font-size:24px; } h2 { font-size:18px; margin-bottom:12px; color:var(--primary); }
+ .tabs { display:flex; gap:8px; margin-bottom:20px; }
+ .tab { flex:1; padding:12px; border:none; border-radius:8px; background:#E2E8F0; cursor:pointer; font-weight:600; }
+ .tab.active { background:var(--primary); color:white; }
+ .card { background:var(--card); padding:20px; border-radius:16px; box-shadow:0 4px 12px rgba(0,0,0,0.08); margin-bottom:16px; }
+  input, textarea, select, button { width:100%; padding:12px; margin-top:8px; border:1px solid #CBD5E1; border-radius:8px; font-size:14px; }
+  button { background:var(--primary); color:white; border:none; cursor:pointer; font-weight:600; }
+  button:disabled { background:#94A3B8; cursor:not-allowed; }
+ .item { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #E2E8F0; }
+ .item-left { display:flex; gap:12px; align-items:center; }
+ .item img { width:60px; height:60px; object-fit:cover; border-radius:12px; }
+ .cart-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; }
+ .badge { background:#CCFBF1; color:var(--primary); padding:4px 8px; border-radius:6px; font-size:12px; }
+ .status { padding:6px 12px; border-radius:20px; font-size:12px; font-weight:600; }
+ .status.pending { background:#FEF3C7; color:#92400E; }
+ .status.process { background:#DBEAFE; color:#1E40AF; }
+ .status.done { background:#D1FAE5; color:#065F46; }
+ .status-box { padding:12px; border-radius:12px; margin-bottom:16px; text-align:center; font-weight:600; }
+ .open { background:#D1FAE5; color:#065F46; }
+ .closed { background:#FEE2E2; color:#991B1B; }
+ .hidden { display:none; }
+ .location-btn { background:#10B981; margin-top:8px; }
+ .copy-btn { background:#F59E0B; margin-top:8px; }
+ .search-box { margin-bottom:12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🛵 Jastip KaTungkal</h1>
+    <p>Kuala Tungkal, Jambi • Gratis Fee Jastip</p>
+    <div id="statusToko" class="status-box"></div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('customer', event)">Order</button>
+    <button class="tab" onclick="switchTab('driver', event)">Cek Order</button>
+  </div>
+
+  <div id="customer" class="tab-content">
+    <div class="card">
+      <h2>Menu Jastip Hari Ini</h2>
+      <input type="text" class="search-box" id="searchMenu" placeholder="Cari menu..." onkeyup="renderMenu()">
+      <div id="menuList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Keranjang <span class="badge" id="cartCount">0</span></h2>
+      <div id="cartList"></div>
+      <div id="cartSummary" class="hidden">
+        <p><strong>Subtotal:</strong> <span id="subtotal">Rp 0</span></p>
+        <p><strong>Ongkir:</strong> <span id="ongkir">Pilih zona dulu</span></p>
+        <p style="font-size:20px; margin-top:8px;"><strong>Total: <span id="total">Rp 0</span></strong></p>
+
+        <input type="text" id="nama" placeholder="Nama Lengkap">
+        <input type="text" id="wa" placeholder="No WhatsApp">
+        <select id="zona" onchange="updateOngkir()">
+          <option value="">Pilih Zona Delivery</option>
+        </select>
+        <textarea id="alamat" placeholder="Alamat lengkap + patokan"></textarea>
+
+        <button type="button" class="location-btn" onclick="getLocation()">📍 Share Lokasi Google Maps</button>
+        <input type="text" id="lokasiMaps" placeholder="Link lokasi akan muncul di sini" readonly>
+
+        <button type="button" class="copy-btn" onclick="copyAlamat()">📋 Salin Alamat</button>
+        <button id="btnCheckout" onclick="checkout()">Checkout via WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="driver" class="tab-content hidden">
+    <div class="card">
+      <h2>Cek Order Kamu</h2>
+      <input type="text" id="searchWA" placeholder="Masukkan No WA untuk cek order">
+      <button onclick="cekOrder()">Cek</button>
+      <div id="orderList" style="margin-top:16px;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let settings = JSON.parse(localStorage.getItem('katungkal_settings')) || {
+  openTime: "09:00",
+  closeTime: "21:00",
+  isOpen: true,
+  nomorAdmin: "6281234567890"
+};
+
+let menu = JSON.parse(localStorage.getItem('katungkal_menu')) || [
+  {id:1, nama:"Kopi Janji Jiwa", harga:25000, img:""}
+];
+
+let zones = JSON.parse(localStorage.getItem('katungkal_zones')) || [
+  {id:1, nama:"Kuala Tungkal Kota", ongkir:5000},
+  {id:2, nama:"Parit Culum 1", ongkir:8000}
+];
+
+let cart = [];
+let orders = JSON.parse(localStorage.getItem('katungkal_orders')) || [];
+let selectedOngkir = 0;
+let isOpenNow = false;
+
+function save() {
+  localStorage.setItem('katungkal_orders', JSON.stringify(orders));
+}
+
+function checkOpen() {
+  const now = new Date();
+  const current = now.getHours()*60 + now.getMinutes();
+  const [oh,om] = settings.openTime.split(':').map(Number);
+  const [ch,cm] = settings.closeTime.split(':').map(Number);
+
+  isOpenNow = settings.isOpen && current >= oh*60+om && current <= ch*60+cm;
+
+  const statusBox = document.getElementById('statusToko');
+  const btnCheckout = document.getElementById('btnCheckout');
+
+  if(isOpenNow){
+    statusBox.className = 'status-box open';
+    statusBox.textContent = `Toko Buka: ${settings.openTime} - ${settings.closeTime}`;
+    if(btnCheckout) btnCheckout.disabled = false;
+  }else{
+    statusBox.className = 'status-box closed';
+    statusBox.textContent = `Toko Tutup. Buka lagi jam ${settings.openTime}`;
+    if(btnCheckout) btnCheckout.disabled = true;
+  }
+}
+
+function switchTab(tab, event) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+  event.target.classList.add('active');
+  document.getElementById(tab).classList.remove('hidden');
+  render();
+}
+
+function getLocation() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        let lat = position.coords.latitude;
+        let lng = position.coords.longitude;
+        document.getElementById('lokasiMaps').value = `https://www.google.com/maps?q=${lat},${lng}`;
+        alert('Lokasi berhasil didapat!');
+      },
+      () => alert('Gagal dapat lokasi. Pastikan izin lokasi diaktifkan.')
+    );
+  }
+}
+
+function copyAlamat() {
+  let alamat = document.getElementById('alamat').value;
+  let nama = document.getElementById('nama').value;
+  let zona = document.getElementById('zona');
+  let zonaText = zona.options[zona.selectedIndex]?.text || '';
+  navigator.clipboard.writeText(`Nama: ${nama}\nZona: ${zonaText}\nAlamat: ${alamat}`).then(() => {
+    alert('Alamat berhasil disalin!');
+  });
+}
+
+function renderMenu() {
+  const search = document.getElementById('searchMenu').value.toLowerCase();
+  const filteredMenu = menu.filter(m => m.nama.toLowerCase().includes(search));
+
+  document.getElementById('menuList').innerHTML = filteredMenu.map(m => `
+    <div class="item">
+      <div class="item-left">
+        ${m.img? `<img src="${m.img}">` : '<div style="width:60px; height:60px; background:#E2E8F0; border-radius:12px;"></div>'}
+        <div>
+          <strong>${m.nama}</strong>
+          <p style="color:var(--muted)">Rp ${m.harga.toLocaleString()}</p>
+        </div>
+      </div>
+      <button style="width:auto; padding:8px 16px;" onclick="addCart(${m.id})" ${!isOpenNow?'disabled':''}>+ Tambah</button>
+    </div>
+  `).join('');
+}
+
+function render() {
+  settings = JSON.parse(localStorage.getItem('katungkal_settings')) || settings;
+  menu = JSON.parse(localStorage.getItem('katungkal_menu')) || menu;
+  zones = JSON.parse(localStorage.getItem('katungkal_zones')) || zones;
+
+  renderMenu();
+  document.getElementById('zona').innerHTML = '<option value="">Pilih Zona Delivery</option>' +
+    zones.map(z => `<option value="${z.id}">${z.nama} - Rp ${z.ongkir.toLocaleString()}</option>`).join('');
+
+  document.getElementById('cartCount').innerText = cart.reduce((a,b)=>a+b.qty,0);
+  document.getElementById('cartList').innerHTML = cart.map((c,i) => `
+    <div class="cart-item">
+      <span>${c.nama} x${c.qty}</span>
+      <span>Rp ${(c.harga*c.qty).toLocaleString()} <button style="width:auto; padding:4px 8px; background:#DC2626; color:white; border:none; border-radius:4px;" onclick="removeCart(${i})">X</button></span>
+    </div>
+  `).join('');
+
+  let subtotal = cart.reduce((a,b)=>a+b.harga*b.qty,0);
+  document.getElementById('subtotal').innerText = 'Rp ' + subtotal.toLocaleString();
+  document.getElementById('ongkir').innerText = selectedOngkir > 0? 'Rp ' + selectedOngkir.toLocaleString() : 'Pilih zona dulu';
+  document.getElementById('total').innerText = 'Rp ' + (subtotal + selectedOngkir).toLocaleString();
+  document.getElementById('cartSummary').classList.toggle('hidden', cart.length===0);
+}
+
+function cekOrder() {
+  const wa = document.getElementById('searchWA').value.replace(/^0/, '62');
+  const userOrders = orders.filter(o => o.wa === wa);
+
+  if(userOrders.length === 0){
+    document.getElementById('orderList').innerHTML = '<p>Order tidak ditemukan</p>';
+    return;
+  }
+
+  document.getElementById('orderList').innerHTML = userOrders.map(o => `
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between;">
+        <strong>${o.nama}</strong>
+        <span class="status ${o.status}">${o.status}</span>
+      </div>
+      <p style="margin-top:8px;">${o.items}</p>
+      <p>Zona: ${o.zona}</p>
+      <p>Alamat: ${o.alamat}</p>
+      ${o.lokasiMaps? `<p><a href="${o.lokasiMaps}" target="_blank" style="color:var(--primary)">📍 Buka Lokasi di Maps</a></p>` : ''}
+      <p><strong>Total: Rp ${o.total.toLocaleString()}</strong></p>
+    </div>
+  `).join('');
+}
+
+function addCart(id) {
+  if(!isOpenNow) return alert('Maaf, toko sedang tutup');
+  let item = menu.find(m=>m.id===id);
+  let existing = cart.find(c=>c.id===id);
+  if(existing) existing.qty++;
+  else cart.push({...item, qty:1});
+  render();
+}
+
+function removeCart(i) { cart.splice(i,1); render(); }
+
+function updateOngkir() {
+  let zona = zones.find(z=>z.id==document.getElementById('zona').value);
+  selectedOngkir = zona? zona.ongkir : 0;
+  render();
+}
+
+function checkout() {
+  if(!isOpenNow) return alert('Maaf, toko sedang tutup');
+
+  let nama = document.getElementById('nama').value;
+  let wa = document.getElementById('wa').value;
+  let alamat = document.getElementById('alamat').value;
+  let lokasiMaps = document.getElementById('lokasiMaps').value;
+  let zona = zones.find(z=>z.id==document.getElementById('zona').value);
+
+  if(!nama||!wa||!alamat||!zona) return alert('Isi semua data & pilih zona dulu!');
+
+  wa = wa.replace(/^0/, '62');
+
+  let subtotal = cart.reduce((a,b)=>a+b.harga*b.qty,0);
+  let total = subtotal + zona.ongkir;
+  let items = cart.map(c=>`${c.nama} x${c.qty}`).join(', ');
+
+  orders.push({id:Date.now(), nama, wa, alamat, zona: zona.nama, lokasiMaps, items, subtotal, total, status:'pending'});
+  save();
+
+  let waMsg = `Halo Jastip KaTungkal!%0A%0AOrder:%0A${items}%0A%0ASubtotal: Rp ${subtotal.toLocaleString()}%0AOngkir ${zona.nama}: Rp ${zona.ongkir.toLocaleString()}%0ATotal: Rp ${total.toLocaleString()}%0A%0ANama: ${nama}%0AZona: ${zona.nama}%0AAlamat: ${alamat}`;
+  if(lokasiMaps) waMsg += `%0ALokasi Maps: ${lokasiMaps}`;
+
+  window.open(`https://wa.me/${settings.nomorAdmin}?text=${waMsg}`, '_blank');
+  cart = []; selectedOngkir = 0; alert('Order dikirim ke WhatsApp admin!'); render();
+}
+
+checkOpen();
+render();
+setInterval(checkOpen, 60000);
+</script>
+</body>
+</html>

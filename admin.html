@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Jastip KaTungkal</title>
+<style>
+  :root { --primary: #0D9488; --bg: #F0FDFA; --card: #FFFFFF; --text: #134E4A; }
+    * { margin:0; padding:0; box-sizing:border-box; font-family:system-ui,sans-serif; }
+  body { background:var(--bg); color:var(--text); padding:16px; }
+.container { max-width:900px; margin:0 auto; }
+  header { background:var(--primary); color:white; padding:20px; border-radius:16px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+  h2 { font-size:18px; margin-bottom:12px; color:var(--primary); }
+.card { background:var(--card); padding:20px; border-radius:16px; box-shadow:0 4px 12px rgba(0,0,0,0.08); margin-bottom:16px; }
+  input, select, button, textarea { width:100%; padding:12px; margin-top:8px; border:1px solid #CBD5E1; border-radius:8px; font-size:14px; }
+  button { background:var(--primary); color:white; border:none; cursor:pointer; font-weight:600; }
+  button.danger { background:#DC2626; }
+  button.warn { background:#F59E0B; }
+  button.secondary { background:#64748B; }
+.item { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #E2E8F0; }
+.hidden { display:none; }
+.item-left { display:flex; gap:12px; align-items:center; }
+.item img { width:50px; height:50px; object-fit:cover; border-radius:8px; }
+.status { padding:6px 12px; border-radius:20px; font-size:12px; font-weight:600; }
+.status.pending { background:#FEF3C7; color:#92400E; }
+.status.process { background:#DBEAFE; color:#1E40AF; }
+.status.done { background:#D1FAE5; color:#065F46; }
+.btn-group { display:flex; gap:8px; }
+.btn-group button { flex:1; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="loginBox" class="card">
+    <h2>Login Admin</h2>
+    <input type="password" id="pass" placeholder="Masukkan Password">
+    <button onclick="login()">Login</button>
+    <p id="loginMsg" style="color:#DC2626; margin-top:8px;"></p>
+  </div>
+
+  <div id="adminPanel" class="hidden">
+    <header>
+      <h1>⚙️ Admin Jastip KaTungkal</h1>
+      <div class="btn-group">
+        <button class="warn" onclick="showPassModal()">Ganti Password</button>
+        <button class="danger" onclick="logout()">Logout</button>
+      </div>
+    </header>
+
+    <div class="card">
+      <h2>Backup & Restore Data</h2>
+      <p style="color:#64748B; font-size:13px; margin-bottom:8px;">Pakai ini buat mindahin data ke HP lain</p>
+      <div class="btn-group">
+        <button class="secondary" onclick="exportData()">📤 Export Data</button>
+        <button onclick="document.getElementById('importFile').click()">📥 Import Data</button>
+      </div>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+
+    <div class="card">
+      <h2>Pengaturan Toko</h2>
+      <div style="display:flex; gap:8px;">
+        <input type="time" id="openTime">
+        <input type="time" id="closeTime">
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+        <input type="checkbox" id="isOpen" style="width:auto;">
+        Toko Buka
+      </label>
+      <input type="text" id="nomorAdmin" placeholder="Nomor WA Admin 6281234567890">
+      <small style="color:#64748B;">Pakai 62, tanpa 0. Ketik 08123 juga auto jadi 628123</small>
+      <button onclick="saveSettings()">Simpan Pengaturan</button>
+    </div>
+
+    <div class="card">
+      <h2>Kelola Menu</h2>
+      <input type="text" id="menuNama" placeholder="Nama Barang/Restoran">
+      <input type="number" id="menuHarga" placeholder="Harga">
+      <input type="file" id="menuImg" accept="image/*">
+      <img id="imgPreview" style="width:80px; height:80px; object-fit:cover; border-radius:8px; margin-top:8px; display:none;">
+      <button onclick="tambahMenu()">+ Tambah Menu</button>
+      <div id="adminMenuList" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Kelola Zona Delivery</h2>
+      <input type="text" id="zonaNama" placeholder="Nama Kelurahan/Kecamatan">
+      <input type="number" id="zonaOngkir" placeholder="Ongkir Rp">
+      <button onclick="tambahZona()">+ Tambah Zona</button>
+      <div id="adminZonaList" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Order Masuk</h2>
+      <div id="adminOrderList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Statistik Hari Ini</h2>
+      <p>Total Order: <strong id="statOrder">0</strong></p>
+      <p>Omzet: <strong id="statOmzet">Rp 0</strong></p>
+    </div>
+  </div>
+</div>
+
+<div id="passModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+  <div class="card" style="width:90%; max-width:400px;">
+    <h2>Ganti Password</h2>
+    <input type="password" id="oldPass" placeholder="Password Lama">
+    <input type="password" id="newPass" placeholder="Password Baru">
+    <input type="password" id="newPass2" placeholder="Ulangi Password Baru">
+    <div style="display:flex; gap:8px;">
+      <button onclick="changePass()">Simpan</button>
+      <button class="danger" onclick="hidePassModal()">Batal</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let passHash = localStorage.getItem('katungkal_passhash') || btoa("admin123");
+let settings = JSON.parse(localStorage.getItem('katungkal_settings')) || {
+  openTime: "09:00",
+  closeTime: "21:00",
+  isOpen: true,
+  nomorAdmin: "6281234567890"
+};
+let menu = JSON.parse(localStorage.getItem('katungkal_menu')) || [];
+let zones = JSON.parse(localStorage.getItem('katungkal_zones')) || [];
+let orders = JSON.parse(localStorage.getItem('katungkal_orders')) || [];
+let attempts = 0;
+
+function hash(str){ return btoa(str); }
+
+function login(){
+  const p = document.getElementById('pass').value;
+  if(hash(p) === passHash){
+    document.getElementById('loginBox').classList.add('hidden');
+    document.getElementById('adminPanel').classList.remove('hidden');
+    loadSettings();
+    render();
+    attempts=0;
+  }else{
+    attempts++;
+    document.getElementById('loginMsg').textContent = 'Password salah';
+    if(attempts>=5){
+      alert('Terlalu banyak percobaan. Tunggu 5 menit');
+      document.getElementById('loginBox').classList.add('hidden');
+      setTimeout(()=>{document.getElementById('loginBox').classList.remove('hidden'); attempts=0;},300000);
+    }
+  }
+}
+
+function logout(){
+  document.getElementById('adminPanel').classList.add('hidden');
+  document.getElementById('loginBox').classList.remove('hidden');
+  document.getElementById('pass').value='';
+}
+
+function showPassModal(){ document.getElementById('passModal').style.display='flex'; }
+function hidePassModal(){
+  document.getElementById('passModal').style.display='none';
+  document.getElementById('oldPass').value='';
+  document.getElementById('newPass').value='';
+  document.getElementById('newPass2').value='';
+}
+
+function changePass(){
+  const oldP = document.getElementById('oldPass').value;
+  const newP = document.getElementById('newPass').value;
+  const newP2 = document.getElementById('newPass2').value;
+
+  if(hash(oldP)!== passHash) return alert('Password lama salah');
+  if(newP!== newP2) return alert('Password baru tidak cocok');
+  if(newP.length < 4) return alert('Password minimal 4 karakter');
+
+  passHash = hash(newP);
+  localStorage.setItem('katungkal_passhash', passHash);
+  alert('Password berhasil diganti');
+  hidePassModal();
+}
+
+function loadSettings(){
+  document.getElementById('openTime').value = settings.openTime;
+  document.getElementById('closeTime').value = settings.closeTime;
+  document.getElementById('isOpen').checked = settings.isOpen;
+  document.getElementById('nomorAdmin').value = settings.nomorAdmin;
+}
+
+function saveSettings(){
+  let no = document.getElementById('nomorAdmin').value.trim();
+  no = no.replace(/\+|\s|-/g, '');
+  if(no.startsWith('08')) no = '62' + no.substring(1);
+
+  settings.openTime = document.getElementById('openTime').value;
+  settings.closeTime = document.getElementById('closeTime').value;
+  settings.isOpen = document.getElementById('isOpen').checked;
+  settings.nomorAdmin = no;
+
+  localStorage.setItem('katungkal_settings', JSON.stringify(settings));
+  alert('Pengaturan tersimpan');
+}
+
+document.getElementById('menuImg').addEventListener('change',function(e){
+  const file = e.target.files[0];
+  if(!file)return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    document.getElementById('imgPreview').src=ev.target.result;
+    document.getElementById('imgPreview').style.display='block';
+  };
+  reader.readAsDataURL(file);
+});
+
+function save() {
+  localStorage.setItem('katungkal_menu', JSON.stringify(menu));
+  localStorage.setItem('katungkal_zones', JSON.stringify(zones));
+  localStorage.setItem('katungkal_orders', JSON.stringify(orders));
+}
+
+function render() {
+  document.getElementById('adminMenuList').innerHTML = menu.map(m => `
+    <div class="item">
+      <div class="item-left">
+        ${m.img? `<img src="${m.img}">` : ''}
+        <span>${m.nama} - Rp ${m.harga.toLocaleString()}</span>
+      </div>
+      <button class="danger" style="width:auto;" onclick="hapusMenu(${m.id})">Hapus</button>
+    </div>
+  `).join('');
+
+  document.getElementById('adminZonaList').innerHTML = zones.map(z => `
+    <div class="item">
+      <span>${z.nama} - Rp ${z.ongkir.toLocaleString()}</span>
+      <button class="danger" style="width:auto;" onclick="hapusZona(${z.id})">Hapus</button>
+    </div>
+  `).join('');
+
+  document.getElementById('adminOrderList').innerHTML = orders.slice().reverse().map(o => `
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong>${o.nama}</strong>
+        <select onchange="updateStatus(${o.id}, this.value)" style="width:auto;">
+          <option ${o.status==='pending'?'selected':''} value="pending">Pending</option>
+          <option ${o.status==='process'?'selected':''} value="process">Diproses</option>
+          <option ${o.status==='done'?'selected':''} value="done">Selesai</option>
+        </select>
+      </div>
+      <p style="margin-top:8px;">${o.items}</p>
+      <p>Zona: ${o.zona}</p>
+      <p>Alamat: ${o.alamat}</p>
+      ${o.lokasiMaps? `<p><a href="${o.lokasiMaps}" target="_blank" style="color:var(--primary)">📍 Buka Lokasi</a></p>` : ''}
+      <p><strong>Total: Rp ${o.total.toLocaleString()}</strong></p>
+      <button class="danger" style="width:auto; margin-top:8px;" onclick="hapusOrder(${o.id})">Hapus Order</button>
+    </div>
+  `).join('');
+
+  let omzet = orders.filter(o=>o.status==='done').reduce((a,b)=>a+b.total,0);
+  document.getElementById('statOrder').innerText = orders.length;
+  document.getElementById('statOmzet').innerText = 'Rp ' + omzet.toLocaleString();
+}
+
+function updateStatus(id, status){
+  let order = orders.find(o=>o.id===id);
+  if(order){
+    order.status = status;
+    save();
+    render();
+  }
+}
+
+function hapusOrder(id){
+  if(confirm('Hapus order ini?')){
+    orders = orders.filter(o=>o.id!==id);
+    save();
+    render();
+  }
+}
+
+function tambahMenu() {
+  let nama = document.getElementById('menuNama').value;
+  let harga = parseInt(document.getElementById('menuHarga').value);
+  let img = document.getElementById('imgPreview').src || "";
+  if(!nama||!harga) return alert('Isi nama dan harga!');
+  menu.push({id:Date.now(), nama, harga, img});
+  save();
+  document.getElementById('menuNama').value='';
+  document.getElementById('menuHarga').value='';
+  document.getElementById('menuImg').value='';
+  document.getElementById('imgPreview').style.display='none';
+  render();
+}
+
+function hapusMenu(id) { menu = menu.filter(m=>m.id!==id); save(); render(); }
+
+function tambahZona() {
+  let nama = document.getElementById('zonaNama').value;
+  let ongkir = parseInt(document.getElementById('zonaOngkir').value);
+  if(!nama||!ongkir) return alert('Isi nama zona dan ongkir!');
+  zones.push({id:Date.now(), nama, ongkir});
+  save();
+  document.getElementById('zonaNama').value='';
+  document.getElementById('zonaOngkir').value='';
+  render();
+}
+
+function hapusZona(id) { zones = zones.filter(z=>z.id!==id); save(); render(); }
+
+// EXPORT IMPORT
+function exportData(){
+  const data = {
+    settings, menu, zones, orders,
+    passHash, exportDate: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'katungkal_backup_' + Date.now() + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  alert('Data berhasil di-export!');
+}
+
+function importData(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const data = JSON.parse(e.target.result);
+      if(confirm('Import data ini akan timpa semua data sekarang. Lanjut?')){
+        settings = data.settings || settings;
+        menu = data.menu || menu;
+        zones = data.zones || zones;
+        orders = data.orders || orders;
+        passHash = data.passHash || passHash;
+
+        save();
+        localStorage.setItem('katungkal_settings', JSON.stringify(settings));
+        localStorage.setItem('katungkal_passhash', passHash);
+
+        alert('Data berhasil di-import! Halaman akan di-reload');
+        location.reload();
+      }
+    }catch(err){
+      alert('File backup rusak atau salah format');
+    }
+  };
+  reader.readAsText(file);
+}
+
+setInterval(render, 30000);
+</script>
+</body>
+</html>
